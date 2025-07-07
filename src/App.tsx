@@ -31,6 +31,7 @@ function VillainCard({ villain, side, showCrimeCount, isRevealed }: VillainCardP
 
       if (!imageUrl) {
         setShowFallback(true);
+        setIsSpinning(false); // Ensure spinning is off if no image URL
         return;
       }
 
@@ -40,11 +41,12 @@ function VillainCard({ villain, side, showCrimeCount, isRevealed }: VillainCardP
         if (cachedImg.complete) {
           setCurrentImage(imageUrl);
           setImageLoaded(true);
+          setIsSpinning(false); // Ensure spinning is off if image is cached
           return;
         }
       }
 
-      // Start spinning when loading new image
+      // Start spinning only if a new image load is initiated
       setIsSpinning(true);
       
       const img = new Image();
