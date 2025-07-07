@@ -17,9 +17,10 @@ const PORT = process.env.PORT || 3001;
 app.get('/api/villains', (req, res) => {
   const { difficulty, category, leftVillainName, numCandidates } = req.query;
   let allVillains = [];
-  const villainsPath = path.join(__dirname, 'data', 'villains.json');
-  const villainsData = readFileSync(villainsPath, 'utf8');
-  allVillains = JSON.parse(villainsData);
+  try {
+    const villainsPath = path.join(__dirname, 'data', 'villains.json');
+    const villainsData = readFileSync(villainsPath, 'utf8');
+    allVillains = JSON.parse(villainsData);
 
     let filteredVillains = allVillains;
 
@@ -111,7 +112,10 @@ app.get('/api/villains', (req, res) => {
       console.log(`Default difficulty: firstVillain: ${first?.name}, secondVillain: ${second?.name}`);
       res.json({ firstVillain: first, secondVillain: second });
     }
-
+  } catch (error) {
+    console.error('Error reading villains.json:', error);
+    res.status(500).json({ message: 'Error loading villains data' });
+  }
 });
 
 // Image proxy endpoint
@@ -120,15 +124,14 @@ app.get('/image-proxy', async (req, res) => {
   if (!url || typeof url !== 'string' || !url.startsWith('https://static.wikia.nocookie.net/')) {
     return res.status(400).send('Invalid image URL');
   }
-  const response = await axios.get(url, { responseType: 'arraybuffer' });
-  res.set('Content-Type', response.headers['content-type']);
-  res.send(response.data);
-});
-
-// Centralized error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack); // Log the error stack for debugging
-  res.status(500).json({ message: 'Something broke!', error: err.message });
+  try {
+    const response = await axios.get(url, { responseType: 'arraybuffer' });
+    res.set('Content-Type', response.headers['content-type']);
+    res.send(response.data);
+  } catch (e) {
+    console.error('Image proxy error:', e);
+    res.status(404).send('Image not found');
+  }
 });
 
 app.listen(PORT, () => {
