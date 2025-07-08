@@ -410,6 +410,7 @@ h1 {
    animation: cardTurn 1s ease-in-out forwards;
    transform-style: preserve-3d;
    backface-visibility: visible !important;
+   transition: all 0.2s ease;
 }
 
 .image-loading,

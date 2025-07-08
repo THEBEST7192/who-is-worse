@@ -20,33 +20,44 @@ function VillainCard({ villain, side, showCrimeCount, isRevealed }: VillainCardP
     const showWikiLink = side === 'left' || isRevealed;
 
     useEffect(() => {
-      if (!villain) return;
-      
-      setImageLoaded(false);
-      setShowFallback(false);
-      
+      if (!villain) {
+        setImageLoaded(false);
+        setCurrentImage('');
+        setShowFallback(true);
+        setIsSpinning(true); // Set spinning to true when villain is lost
+        // Add delay to stop spinning animation, just like when loading a new image
+        setTimeout(() => setIsSpinning(false), IMAGE_LOADING_SPIN_DELAY_MS);
+        return;
+      }
+
       const imageUrl = villain.imageUrl && villain.imageUrl.startsWith('https://static.wikia.nocookie.net/')
         ? `${import.meta.env.VITE_IMAGE_PROXY_BASE_URL || ''}/image-proxy?url=${encodeURIComponent(villain.imageUrl)}`
         : villain.imageUrl || '';
 
       if (!imageUrl) {
+        setImageLoaded(false);
+        setCurrentImage('');
         setShowFallback(true);
-        setIsSpinning(false); // Ensure spinning is off if no image URL
+        setIsSpinning(false);
         return;
       }
 
-      // Check if image is in cache
+      // Check if image is in cache first
       if (imageCache.current.has(imageUrl)) {
         const cachedImg = imageCache.current.get(imageUrl);
         if (cachedImg.complete) {
           setCurrentImage(imageUrl);
           setImageLoaded(true);
-          setIsSpinning(false); // Ensure spinning is off if image is cached
+          setShowFallback(false);
+          setIsSpinning(false); // No spinning for cached images
           return;
         }
       }
 
-      // Start spinning only if a new image load is initiated
+      // Only start spinning and reset states if we need to load a new image
+      setImageLoaded(false);
+      setShowFallback(false);
+      setCurrentImage('');
       setIsSpinning(true);
       
       const img = new Image();
@@ -75,7 +86,18 @@ function VillainCard({ villain, side, showCrimeCount, isRevealed }: VillainCardP
       };
     }, [villain]);
 
-  if (!villain) return <div className="villain-card empty">?</div>;
+  if (!villain) {
+    // When there's no villain, render a spinning empty card instead of just text
+    return (
+      <div className="villain-card empty">
+        <div className="villain-image-container">
+          <div className={`image-container ${isSpinning ? 'spinning' : ''}`}>
+            <div className="image-fallback">?</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const imageToShow = showFallback 
     ? '/src/assets/unknown.png' 
@@ -168,7 +190,7 @@ function App() {
   // Load initial pair only once on component mount
   useEffect(() => {
     loadNewPair();
-  }, [loadNewPair]); // Dependency array includes loadNewPair
+  }, []); // Dependency array includes loadNewPair
 
   // Save difficulty to cookie whenever it changes
   useEffect(() => {
