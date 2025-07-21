@@ -17,6 +17,11 @@ const categories = [
 
 const DATA_PATH = path.join(__dirname, 'data', 'villains.json');
 
+function getCategoryFromUrl(url) {
+  const foundCategory = categories.find(cat => url.includes(cat.url.split('/wiki/')[1]));
+  return foundCategory ? foundCategory.name : 'Unknown';
+}
+
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -170,7 +175,7 @@ async function scrapeVillainDetails(villain) {
           imageUrl = parsed.image;
         }
       }
-    } catch (err) {
+    } catch {
       // fallback below
     }
     // If not found, upgrade the thumbnail URL
@@ -251,7 +256,7 @@ async function main() {
   let completed = 0;
   const poolLimit = 8; // Number of concurrent requests
 
-  await asyncPool(poolLimit, uniqueVillains, async (villain, idx) => {
+  await asyncPool(poolLimit, uniqueVillains, async (villain) => {
     const details = await scrapeVillainDetails(villain);
     detailedVillains.push(details);
     completed++;

@@ -9,13 +9,21 @@ interface VillainCardProps {
   side: 'left' | 'right';
   showCrimeCount: boolean;
   isRevealed: boolean;
+  onSpinningChange?: (isSpinning: boolean) => void;
 }
 
-function VillainCard({ villain, side, showCrimeCount, isRevealed }: VillainCardProps) {
+function VillainCard({ villain, side, showCrimeCount, isRevealed, onSpinningChange }: VillainCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [currentImage, setCurrentImage] = useState('');
   const [showFallback, setShowFallback] = useState(false);
   const [isSpinning, setIsSpinning] = useState(false);
+  
+  // Notify parent component when spinning state changes
+  useEffect(() => {
+    if (onSpinningChange) {
+      onSpinningChange(isSpinning);
+    }
+  }, [isSpinning, onSpinningChange]);
     const imageCache = useRef(new Map());
     const showWikiLink = side === 'left' || isRevealed;
 
@@ -24,10 +32,9 @@ function VillainCard({ villain, side, showCrimeCount, isRevealed }: VillainCardP
         setImageLoaded(false);
         setCurrentImage('');
         setShowFallback(true);
-        setIsSpinning(true); // Set spinning to true when villain is lost
-        // Add delay to stop spinning animation, just like when loading a new image
-        setTimeout(() => setIsSpinning(false), IMAGE_LOADING_SPIN_DELAY_MS);
-        return;
+        setIsSpinning(true);
+        const timer = setTimeout(() => setIsSpinning(false), IMAGE_LOADING_SPIN_DELAY_MS);
+        return () => clearTimeout(timer);
       }
 
       const imageUrl = villain.imageUrl && villain.imageUrl.startsWith('https://static.wikia.nocookie.net/')
@@ -38,9 +45,16 @@ function VillainCard({ villain, side, showCrimeCount, isRevealed }: VillainCardP
         setImageLoaded(false);
         setCurrentImage('');
         setShowFallback(true);
-        setIsSpinning(false);
-        return;
+        setIsSpinning(true);
+        const timer = setTimeout(() => setIsSpinning(false), IMAGE_LOADING_SPIN_DELAY_MS);
+        return () => clearTimeout(timer);
       }
+
+      // Only start spinning and reset states if the villain or imageUrl changes
+      setImageLoaded(false);
+      setShowFallback(false);
+      setCurrentImage('');
+      setIsSpinning(true);
 
       // Check if image is in cache first
       if (imageCache.current.has(imageUrl)) {
@@ -49,35 +63,23 @@ function VillainCard({ villain, side, showCrimeCount, isRevealed }: VillainCardP
           setCurrentImage(imageUrl);
           setImageLoaded(true);
           setShowFallback(false);
-          setIsSpinning(false); // No spinning for cached images
+          setIsSpinning(false);
           return;
         }
       }
 
-      // Only start spinning and reset states if we need to load a new image
-      setImageLoaded(false);
-      setShowFallback(false);
-      setCurrentImage('');
-      setIsSpinning(true);
-      
       const img = new Image();
-      
-      // Add to cache before setting src to handle concurrent requests
       imageCache.current.set(imageUrl, img);
-      
       img.onload = () => {
         setCurrentImage(imageUrl);
         setImageLoaded(true);
-        // Stop spinning after a short delay to complete animation
         setTimeout(() => setIsSpinning(false), IMAGE_LOADING_SPIN_DELAY_MS);
       };
-      
       img.onerror = () => {
         setShowFallback(true);
         setIsSpinning(false);
-        imageCache.current.delete(imageUrl); // Remove failed image from cache
+        imageCache.current.delete(imageUrl);
       };
-      
       img.src = imageUrl;
 
       return () => {
@@ -159,6 +161,8 @@ function App() {
   const [message, setMessage] = useState('');
   const [disable, setDisable] = useState(false);
   const [score, setScore] = useState(0);
+  const [leftCardSpinning, setLeftCardSpinning] = useState(false);
+  const [rightCardSpinning, setRightCardSpinning] = useState(false);
   const [category, setCategory] = useState(() => {
     const savedCategory = getCookie('category');
     return savedCategory || CATEGORY_ALL;
@@ -174,6 +178,14 @@ function App() {
   });
   const [revealAnswer, setRevealAnswer] = useState(false);
   const [showResult, setShowResult] = useState(false);
+
+  // Update high score whenever score changes
+  useEffect(() => {
+    if (score > highScore) {
+      setHighScore(score);
+      setCookie('highScore', score.toString(), COOKIE_EXPIRY_DAYS);
+    }
+  }, [score, highScore]);
 
   const loadNextVillain = useCallback(async (leftVillain: Villain) => {
     return await getNextVillain(leftVillain, category === CATEGORY_ALL ? undefined : category, difficulty);
@@ -203,69 +215,67 @@ function App() {
   }, [category]);
 
   const handleGuess = useCallback(async (guess: 'left' | 'right' | 'higher' | 'lower') => {
-    if (!left || !right || disable) return;
-    
-    setDisable(true);
-    setRevealAnswer(true);
-    const correct = checkGuess(left, right, guess, difficulty);
-    
-    if (correct) {
-      const newScore = score + 1;
-      setScore(newScore);
-      if (newScore > highScore) {
-        setHighScore(newScore);
-        setCookie('highScore', newScore.toString(), COOKIE_EXPIRY_DAYS);
-      }
+    // Prevent guessing if either card is still spinning or if already disabled
+    if (!left || !right || disable || leftCardSpinning || rightCardSpinning) return;
+
+    setDisable(true); // Disable buttons immediately
+    setShowResult(true); // Show result immediately
+
+    const isCorrect = checkGuess(left, right, guess, difficulty);
+    setRevealAnswer(true); // Always reveal answer after a guess
+
+    if (isCorrect) {
       setMessage('Correct!');
+      setScore(prevScore => prevScore + 1);
     } else {
-      setMessage(`Wrong!\n${right.crimeCount || 0} crimes`);
-      setScore(0);
+      setMessage('Incorrect! Game Over.');
+      setScore(0); // Reset score on loss
+      setDisable(true); // Keep disabled after game over
+      // No new villain loaded, just show game over message
     }
-    
-    setShowResult(true);
-  }, [left, right, disable, score, highScore, difficulty]);
+  }, [left, right, disable, difficulty, score, highScore, loadNextVillain, loadNewPair, leftCardSpinning, rightCardSpinning]);
   
   const handleNext = useCallback(async () => {
     setShowResult(false);
     setRevealAnswer(false);
     
     if (message === 'Correct!') {
-      // Move right villain to left
-      setLeft(right);
-      
       // Get next villain for the right side
       let nextVillain: Villain | null = await loadNextVillain(right as Villain);
       
-      // For medium and hard difficulty, ensure we don't have a tie
-      if ((difficulty === 'medium' || difficulty === 'hard') && nextVillain) {
-        // If we have a tie, try up to 3 more times to get a non-tie villain
-        if (right && nextVillain.crimeCount === right.crimeCount) {
-          console.log(`Tie detected in handleNext for ${difficulty} mode, trying again...`);
-          let attempts = 0;
-          let foundNonTie = false;
-          
-          while (!foundNonTie && attempts < 3) {
-            const newVillain = await loadNextVillain(right as Villain);
-            if (newVillain && right && newVillain.crimeCount !== right.crimeCount) {
-              nextVillain = newVillain;
-              foundNonTie = true;
-              console.log(`Found non-tie villain in handleNext for ${difficulty} mode`);
-            } else {
-              attempts++;
-              console.log(`Attempt ${attempts}: Still a tie in handleNext for ${difficulty} mode`);
+      if (nextVillain) {
+        setLeft(right);
+        
+        // For medium and hard difficulty, ensure we don't have a tie
+        if ((difficulty === 'medium' || difficulty === 'hard') && nextVillain) {
+          // If we have a tie, try up to 3 more times to get a non-tie villain
+          if (right && nextVillain.crimeCount === right.crimeCount) {
+            console.log(`Tie detected in handleNext for ${difficulty} mode, trying again...`);
+            let attempts = 0;
+            let foundNonTie = false;
+            
+            while (!foundNonTie && attempts < 3) {
+              const newVillain = await loadNextVillain(right as Villain);
+              if (newVillain && right && newVillain.crimeCount !== right.crimeCount) {
+                nextVillain = newVillain;
+                foundNonTie = true;
+                console.log(`Found non-tie villain in handleNext for ${difficulty} mode`);
+              } else {
+                attempts++;
+                console.log(`Attempt ${attempts}: Still a tie in handleNext for ${difficulty} mode`);
+              }
             }
           }
         }
+        
+        setRight(nextVillain);
+      } else {
+        // If no next villain, load a completely new pair
+        await loadNewPair();
       }
-      
-      setRight(nextVillain);
     } else {
       // Reset the game with a new pair
-      const initialPair = await getInitialPair(category === 'all' ? undefined : category, difficulty);
-      if (!initialPair) return; // Handle null case
-      const [a, b] = initialPair;
-      setLeft(a);
-      setRight(b);
+      await loadNewPair();
     }
     
     setDisable(false);
@@ -275,7 +285,7 @@ function App() {
     if (right) {
       await loadNextVillain(right as Villain); // This already uses difficulty from the loadNextVillain useCallback
     }
-  }, [message, right, loadNextVillain]);
+  }, [message, right, loadNextVillain, difficulty, category, loadNewPair]);
 
   const handleCategoryChange = async (newCategory: string) => {
     setCategory(newCategory);
@@ -387,6 +397,7 @@ function App() {
           side="left" 
           showCrimeCount={true}
           isRevealed={revealAnswer}
+          onSpinningChange={setLeftCardSpinning}
         />
         <div className="vs-container">
           <div className="controls-sticky">
@@ -396,9 +407,9 @@ function App() {
             </div>
             <div className="arrows-container">
               <button 
-                className={`vs-arrow ${showResult ? 'disabled' : ''}`} 
+                className={`vs-arrow ${showResult || leftCardSpinning || rightCardSpinning ? 'disabled' : ''}`} 
                 onClick={() => handleGuess('higher')} 
-                disabled={disable || showResult}
+                disabled={disable || showResult || leftCardSpinning || rightCardSpinning}
                 aria-label="Higher"
                 style={{
                   fontSize: '2rem',
@@ -419,9 +430,9 @@ function App() {
                 margin: '0.5rem 0'
               }}>VS</div>
               <button 
-                className={`vs-arrow ${showResult ? 'disabled' : ''}`} 
+                className={`vs-arrow ${showResult || leftCardSpinning || rightCardSpinning ? 'disabled' : ''}`} 
                 onClick={() => handleGuess('lower')} 
-                disabled={disable || showResult}
+                disabled={disable || showResult || leftCardSpinning || rightCardSpinning}
                 aria-label="Lower"
                 style={{
                   fontSize: '2rem',
@@ -459,6 +470,7 @@ function App() {
           side="right" 
           showCrimeCount={revealAnswer}
           isRevealed={revealAnswer}
+          onSpinningChange={setRightCardSpinning}
         />
       </div>
 

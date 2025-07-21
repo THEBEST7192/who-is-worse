@@ -198,6 +198,11 @@ h1 {
 }
 
 .villain-card.right {
+
+.villain-image-container img {
+  border: none;
+  outline: none;
+}
   border: 2px solid #6ec6ff;
 }
 

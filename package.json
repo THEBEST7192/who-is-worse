@@ -13,6 +13,7 @@
     "@types/cheerio": "^0.22.35",
     "axios": "^1.10.0",
     "cheerio": "^1.1.0",
+    "eslint-plugin-react": "^7.37.5",
     "express": "^5.1.0",
     "fastclick": "^1.0.6",
     "framer-motion": "^12.23.0",
@@ -20,7 +21,8 @@
     "node-html-parser": "^7.0.1",
     "react": "^19.1.0",
     "react-confetti": "^6.4.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "typescript-eslint": "^8.37.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",
