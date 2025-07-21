@@ -1,5 +1,5 @@
-export const COOKIE_EXPIRY_DAYS = 60;
-export const IMAGE_LOADING_SPIN_DELAY_MS = 500
+export const COOKIE_EXPIRY_DAYS = 365;
+export const IMAGE_LOADING_SPIN_DELAY_MS = 50;
 export const DIFFICULTY_MEDIUM = 'medium';
 export const CATEGORY_ALL = 'all';
 
