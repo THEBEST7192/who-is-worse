@@ -72,7 +72,7 @@ node scraper.js
 
 This will update the `villains.json` file with the latest villain data from [villains.fandom.com](https://villains.fandom.com/wiki/Main_Page) and save it in `scraper/data/villains.json`, move it to the `backend/data` folder.
 
-(This takes 30-40 minutes for ~~68227~~ **68508** entries)
+(This takes 50-70 minutes for ~~68508~~ **71298** entries)
 
 ## Troubleshooting
 
